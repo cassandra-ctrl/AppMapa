@@ -1,9 +1,11 @@
-
 import * as React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-//importamos la biblioteca de maps
-import MapView, { Marker, Polyline } from 'react-native-maps';
-import * as Location from 'expo-location'
+import * as Location from 'expo-location';
+
+import { View, StyleSheet } from 'react-native';
+import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
+import axios from 'axios';
+
+const API_KEY = 'Qe72ADLzMxndwOELG75g2UalODdS1EwO';
 
 const App = () => {
   const [origin, setOrigin] = React.useState({
@@ -16,14 +18,14 @@ const App = () => {
     //longuitud y latitus donde queremos que termine nuestro mapa
     latitude: 19.420232,
     longitude: -99.182107,
-
   });
 
+
+  //Permisos del usuario
   React.useEffect(() => {
     getLocationPermission();
   }, [])
-  //Preguntamos al usuario si podemos acceder a su ubicacion actual
-  //Es async porque necesitamos los permisos para poder continuar
+
   async function getLocationPermission() {
     let { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
@@ -40,6 +42,34 @@ const App = () => {
 
   }
 
+  //consume api tom tom
+  const [route, setRoute] = React.useState([]);
+
+  React.useEffect(() => {
+    fetchRoute();
+  }, [origin, destination]);
+
+  const fetchRoute = async () => {
+    try {
+      const response = await axios.get(
+        `https://api.tomtom.com/routing/1/calculateRoute/${origin.latitude},${origin.longitude}:${destination.latitude},${destination.longitude}/json`,
+        {
+          params: {
+            key: API_KEY,
+            routeType: 'fastest',
+            travelMode: 'car',
+          },
+        }
+      );
+      const coordinates = response.data.routes[0].legs[0].points.map((point) => ({
+        latitude: point.latitude,
+        longitude: point.longitude,
+      }));
+      setRoute(coordinates);
+    } catch (error) {
+      console.error('ERROR:', error);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -49,56 +79,39 @@ const App = () => {
           latitude: origin.latitude,
           longitude: origin.longitude,
           latitudeDelta: 0.09,
-          longitudeDelta: 0.04
+          longitudeDelta: 0.04,
         }}
-      //anadimos una marca a nuestra coordenada de origen y destino
-      ><Marker
+      >
+        <UrlTile
+          urlTemplate={`https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${API_KEY}`}
+          maximumZ={20}
+        />
+        <Marker
           draggable
           coordinate={origin}
-          //donde tiren el pin, vamos a recibir la latitud y longitud
-          onDragEnd={direction => setOrigin(direction.nativeEvent.coordinate)}
+          onDragEnd={(e) => setOrigin(e.nativeEvent.coordinate)}
         />
-
         <Marker
           draggable
           coordinate={destination}
-          //donde tiren el pin, vamos a recibir la latitud y longitud
-          onDragEnd={direction => setDestination(direction.nativeEvent.coordinate)}
+          onDragEnd={(e) => setDestination(e.nativeEvent.coordinate)}
         />
-        {/* <MapViewDirections
-          origin= {origin}
-          destination={destination}
-          apikey={}
-        /> */}
-        <Polyline
-          //conecta la direccion de inicia a final 
-          coordinates={[origin, destination]}
-          strokeColor='purple'
-          strokeWidth={4}
-        />
+        <Polyline coordinates={route} strokeColor="blue" strokeWidth={4} />
       </MapView>
     </View>
   );
 };
 
+//estilos
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-
   },
   map: {
     width: '100%',
-    height: '100%'
-  }
-
-
+    height: '100%',
+  },
 });
-
-
-
-
 
 export default App;
